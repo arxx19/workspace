@@ -84,3 +84,22 @@ export async function deletePage(formData: FormData) {
   refresh(orgId);
   redirect(`/w/${orgId}`);
 }
+export async function savePageContent(
+  orgId: string,
+  pageId: string,
+  content: unknown,
+) {
+  const session = await getSession();
+  if (!session) throw new Error("Not logged in");
+  if (!isUuid(orgId) || !isUuid(pageId)) throw new Error("Invalid id");
+
+  await withOrg(orgId, async (client) => {
+    if (!canEdit(await getRole(client, session.userId))) {
+      throw new Error("You don't have permission to edit this page");
+    }
+    await client.query(
+      "UPDATE pages SET content = $1, updated_at = now() WHERE id = $2",
+      [JSON.stringify(content), pageId],
+    );
+  });
+}

@@ -5,6 +5,7 @@ import { getRole, canEdit, isUuid } from "@/lib/access";
 import { getSession } from "@/lib/session";
 import { createPage, renamePage, deletePage } from "@/app/page-actions";
 import ConfirmButton from "@/components/ConfirmButton";
+import Editor from "@/components/Editor";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,11 @@ export default async function PageView({
     if (!role) return null;
 
     const res = await client.query(
-      "SELECT id, title, parent_id FROM pages WHERE id = $1",
+      "SELECT id, title, parent_id, content FROM pages WHERE id = $1",
       [pageId],
     );
     const page = res.rows[0] as
-      | { id: string; title: string; parent_id: string | null }
+      | { id: string; title: string; parent_id: string | null; content: object }
       | undefined;
     if (!page) return null;
 
@@ -84,9 +85,14 @@ export default async function PageView({
         <h1 className="mb-6 mt-2 text-3xl font-bold">{data.page.title}</h1>
       )}
 
-      <p className="mb-8 rounded border border-dashed border-gray-700 p-6 text-gray-500">
-        The editor arrives in the next step.
-      </p>
+      <div className="mb-8">
+        <Editor
+          orgId={orgId}
+          pageId={pageId}
+          initialContent={data.page.content as never}
+          editable={editable}
+        />
+      </div>
 
       <h2 className="mb-2 text-lg font-bold">Sub-pages</h2>
       <ul className="mb-4 flex flex-col gap-1">

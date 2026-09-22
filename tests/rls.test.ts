@@ -3,12 +3,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 // Superuser connection: seeds and inspects data (bypasses RLS)
 const admin = new Pool({
-  connectionString: "postgresql://postgres:postgres@localhost:5432/workspace",
+  connectionString:
+    "postgresql://postgres:postgres@localhost:5432/workspace_test",
 });
 // App connection: subject to RLS, like the real app
 const app = new Pool({
   connectionString:
-    "postgresql://app_user:app_password@localhost:5432/workspace",
+    "postgresql://app_user:app_password@localhost:5432/workspace_test",
 });
 
 // Runs queries as if the request belongs to one workspace
@@ -37,10 +38,12 @@ let orgA: string;
 let orgB: string;
 let userId: string;
 let channelA: string;
+let pageA: string;
+let pageB: string;
 
 beforeAll(async () => {
   await admin.query(
-    "TRUNCATE organizations, users, memberships, channels, messages CASCADE",
+    "TRUNCATE organizations, users, memberships, channels, messages, pages CASCADE",
   );
   orgA = (
     await admin.query(
@@ -77,6 +80,18 @@ beforeAll(async () => {
     "INSERT INTO messages (org_id, channel_id, user_id, body) VALUES ($1, $2, $3, 'secret B')",
     [orgB, channelB, userId],
   );
+  pageA = (
+    await admin.query(
+      "INSERT INTO pages (org_id, title, created_by) VALUES ($1, 'Page A', $2) RETURNING id",
+      [orgA, userId],
+    )
+  ).rows[0].id;
+  pageB = (
+    await admin.query(
+      "INSERT INTO pages (org_id, title, created_by) VALUES ($1, 'Page B', $2) RETURNING id",
+      [orgB, userId],
+    )
+  ).rows[0].id;
 });
 
 afterAll(async () => {
@@ -134,5 +149,66 @@ describe("tenant isolation (RLS)", () => {
   it("returns_nothing_when_no_workspace_is_set", async () => {
     const res = await app.query("SELECT * FROM messages");
     expect(res.rowCount).toBe(0);
+  });
+});
+
+describe("pages isolation (RLS)", () => {
+  it("allows_reading_own_workspace_pages", async () => {
+    const res = await asOrg(orgA, (c) =>
+      c.query("SELECT id FROM pages WHERE id = $1", [pageA]),
+    );
+    expect(res.rowCount).toBe(1);
+  });
+
+  it("denies_reading_another_workspace_pages", async () => {
+    const res = await asOrg(orgA, (c) =>
+      c.query("SELECT id FROM pages WHERE id = $1", [pageB]),
+    );
+    expect(res.rowCount).toBe(0);
+  });
+
+  it("denies_renaming_another_workspace_page", async () => {
+    const res = await asOrg(orgA, (c) =>
+      c.query("UPDATE pages SET title = 'hacked' WHERE id = $1", [pageB]),
+    );
+    expect(res.rowCount).toBe(0);
+    const check = await admin.query("SELECT title FROM pages WHERE id = $1", [
+      pageB,
+    ]);
+    expect(check.rows[0].title).toBe("Page B");
+  });
+
+  it("denies_deleting_another_workspace_page", async () => {
+    const res = await asOrg(orgA, (c) =>
+      c.query("DELETE FROM pages WHERE id = $1", [pageB]),
+    );
+    expect(res.rowCount).toBe(0);
+    const check = await admin.query(
+      "SELECT count(*)::int AS n FROM pages WHERE id = $1",
+      [pageB],
+    );
+    expect(check.rows[0].n).toBe(1);
+  });
+
+  it("denies_inserting_page_into_another_workspace", async () => {
+    await expect(
+      asOrg(orgA, (c) =>
+        c.query(
+          "INSERT INTO pages (org_id, title, created_by) VALUES ($1, 'planted', $2)",
+          [orgB, userId],
+        ),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("denies_nesting_under_another_workspace_page", async () => {
+    await expect(
+      asOrg(orgA, (c) =>
+        c.query(
+          "INSERT INTO pages (org_id, parent_id, title, created_by) VALUES ($1, $2, 'sneaky', $3)",
+          [orgA, pageB, userId],
+        ),
+      ),
+    ).rejects.toThrow();
   });
 });

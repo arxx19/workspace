@@ -110,7 +110,12 @@ export default function Editor({
       timer.current = setTimeout(async () => {
         setStatus("saving");
         try {
-          await savePageContent(orgId, pageId, editor.getJSON());
+          await savePageContent(
+            orgId,
+            pageId,
+            editor.getJSON(),
+            editor.getText(),
+          );
           setStatus("saved");
         } catch {
           setStatus("unsaved");
@@ -124,7 +129,12 @@ export default function Editor({
     return () => {
       if (timer.current) clearTimeout(timer.current);
       if (editor && status !== "saved") {
-        savePageContent(orgId, pageId, editor.getJSON()).catch(() => {});
+        savePageContent(
+          orgId,
+          pageId,
+          editor.getJSON(),
+          editor.getText(),
+        ).catch(() => {});
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

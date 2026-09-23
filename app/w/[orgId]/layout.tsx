@@ -51,6 +51,16 @@ export default async function WorkspaceLayout({
           {data.orgName}
         </Link>
 
+        <form action={`/w/${orgId}/search`} className="mb-4">
+          <input
+            name="q"
+            placeholder="Search…"
+            className="w-full rounded border border-gray-500 bg-white p-1 text-sm text-black placeholder-gray-500"
+          />
+        </form>
+
+        <div className="mb-4 flex flex-col gap-1 text-sm text-gray-400"></div>
+
         <div className="mb-4 flex flex-col gap-1 text-sm text-gray-400">
           <Link
             href={`/w/${orgId}`}

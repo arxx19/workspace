@@ -66,6 +66,12 @@ export default async function PageView({
           ↑ {data.parent.title}
         </Link>
       )}
+      <Link
+        href={`/w/${orgId}/p/${pageId}/history`}
+        className="mb-2 block text-sm text-gray-400 underline"
+      >
+        Version history
+      </Link>
 
       {editable ? (
         <form action={renamePage} className="mb-6 mt-2 flex gap-2">
